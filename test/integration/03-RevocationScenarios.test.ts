@@ -101,4 +101,48 @@ describe('Integration: Revocation Scenarios', function () {
 
     console.log('✅ Non-revocable lockup correctly protected');
   });
+
+  it('Beneficiary can release before owner revokes (intended behavior)', async function () {
+    await simpleLockup.createLockup(
+      beneficiary.address,
+      TOTAL_AMOUNT,
+      0,
+      VESTING_DURATION,
+      true // Revocable
+    );
+
+    console.log('✅ Revocable lockup created');
+
+    // Fast forward to 50% vesting
+    await time.increase(VESTING_DURATION / 2);
+
+    const vestedBefore = await simpleLockup.vestedAmount(beneficiary.address);
+    console.log(`\n📊 50% vested: ${ethers.formatEther(vestedBefore)} tokens`);
+
+    // Beneficiary releases BEFORE owner revokes (this is acceptable)
+    await simpleLockup.connect(beneficiary).release();
+    const beneficiaryBalance = await token.balanceOf(beneficiary.address);
+    expect(beneficiaryBalance).to.be.closeTo(vestedBefore, ethers.parseEther('0.1'));
+
+    console.log(
+      `\n💰 Beneficiary claimed before revocation: ${ethers.formatEther(beneficiaryBalance)} tokens`
+    );
+
+    // Owner revokes AFTER beneficiary already claimed (should still succeed)
+    await expect(simpleLockup.revoke(beneficiary.address)).to.not.be.reverted;
+
+    const lockup = await simpleLockup.lockups(beneficiary.address);
+    expect(lockup.revoked).to.equal(true);
+
+    // Verify lockup is revoked and vesting is frozen
+    const releasableAfterRevoke = await simpleLockup.releasableAmount(beneficiary.address);
+    // Releasable amount should be minimal (time passed during transactions)
+    expect(releasableAfterRevoke).to.be.lt(ethers.parseEther('100')); // Less than 100 tokens
+
+    console.log(
+      `\n📊 Releasable after revoke: ${ethers.formatEther(releasableAfterRevoke)} tokens (minimal)`
+    );
+    console.log('✅ Revocation succeeded even after beneficiary claimed (intended behavior)');
+    console.log("   This is NOT a front-running vulnerability - it's fair usage");
+  });
 });

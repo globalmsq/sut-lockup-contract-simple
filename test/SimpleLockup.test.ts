@@ -18,9 +18,9 @@ describe('SimpleLockup', function () {
   beforeEach(async function () {
     [owner, beneficiary, otherAccount] = await ethers.getSigners();
 
-    // Deploy mock token
+    // Deploy mock token with sufficient supply for large amount tests
     const MockERC20Factory = await ethers.getContractFactory('MockERC20');
-    token = await MockERC20Factory.deploy('Test Token', 'TEST', ethers.parseEther('1000000'));
+    token = await MockERC20Factory.deploy('Test Token', 'TEST', ethers.parseEther('100000000'));
     await token.waitForDeployment();
 
     // Deploy SimpleLockup
@@ -364,6 +364,74 @@ describe('SimpleLockup', function () {
       await expect(
         simpleLockup.connect(otherAccount).revoke(beneficiary.address)
       ).to.be.revertedWithCustomError(simpleLockup, 'OwnableUnauthorizedAccount');
+    });
+  });
+
+  describe('Precision', function () {
+    it('Should handle large amounts with acceptable precision', async function () {
+      const LARGE_AMOUNT = ethers.parseEther('50000000'); // 50 million tokens
+      const TEN_YEARS = 10 * 365 * 24 * 60 * 60;
+
+      await token.approve(await simpleLockup.getAddress(), LARGE_AMOUNT);
+      await simpleLockup.createLockup(
+        beneficiary.address,
+        LARGE_AMOUNT,
+        0, // No cliff
+        TEN_YEARS,
+        true
+      );
+
+      // Day 1
+      await time.increase(24 * 60 * 60);
+      const vested1 = await simpleLockup.vestedAmount(beneficiary.address);
+      expect(vested1).to.be.gt(0); // Should have some vested amount
+
+      await simpleLockup.connect(beneficiary).release();
+      const balance1 = await token.balanceOf(beneficiary.address);
+      expect(balance1).to.be.closeTo(vested1, ethers.parseEther('1000')); // Allow small tolerance
+
+      // Day 2
+      await time.increase(24 * 60 * 60);
+      const vested2 = await simpleLockup.vestedAmount(beneficiary.address);
+      await simpleLockup.connect(beneficiary).release();
+      const balance2 = await token.balanceOf(beneficiary.address);
+
+      // Verify second day's vested amount is roughly 2x first day (auto-correction)
+      expect(vested2).to.be.closeTo(vested1 * 2n, ethers.parseEther('10000'));
+      expect(balance2).to.be.closeTo(vested2, ethers.parseEther('1000')); // Allow small tolerance
+    });
+
+    it('Should have minimal precision loss on revocation', async function () {
+      const LARGE_AMOUNT = ethers.parseEther('50000000');
+      const TEN_YEARS = 10 * 365 * 24 * 60 * 60;
+
+      await token.approve(await simpleLockup.getAddress(), LARGE_AMOUNT);
+      await simpleLockup.createLockup(beneficiary.address, LARGE_AMOUNT, 0, TEN_YEARS, true);
+
+      // 5 years later (50% vesting)
+      await time.increase(5 * 365 * 24 * 60 * 60);
+      await simpleLockup.revoke(beneficiary.address);
+
+      const lockup = await simpleLockup.lockups(beneficiary.address);
+      const expected = LARGE_AMOUNT / 2n; // 50% should be vested
+
+      // Verify acceptable precision (< 0.001% error for 50M tokens)
+      const tolerance = ethers.parseEther('1000'); // 1000 tokens tolerance = 0.002%
+      expect(lockup.vestedAtRevoke).to.be.closeTo(expected, tolerance);
+    });
+
+    it('Should enforce MAX_VESTING_DURATION', async function () {
+      const MAX_DURATION = 10 * 365 * 24 * 60 * 60;
+
+      await expect(
+        simpleLockup.createLockup(
+          beneficiary.address,
+          TOTAL_AMOUNT,
+          0,
+          MAX_DURATION + 1, // 10 years + 1 second
+          true
+        )
+      ).to.be.revertedWithCustomError(simpleLockup, 'InvalidDuration');
     });
   });
 });

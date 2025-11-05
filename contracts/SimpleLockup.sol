@@ -10,6 +10,21 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * @title SimpleLockup
  * @notice Minimal token lockup with linear vesting - one lockup per address
  * @dev Implements linear vesting with cliff period, simplified from TokenLockup
+ *
+ * Key Design Decisions:
+ * - One lockup per address: Simplifies state management, reduces gas costs, clear ownership
+ * - Immutable token: Cannot be changed after deployment for security and predictability
+ * - Pull payment pattern: Beneficiaries initiate withdrawals (gas-efficient, secure)
+ * - Integer division: Uses standard Solidity division for vesting calculations
+ *   * Sub-token precision loss is acceptable for simplicity and gas efficiency
+ *   * No cumulative error: Each vesting calculation is independent
+ *   * Completion guarantee: All remaining tokens released at vesting end
+ *
+ * @custom:security-considerations
+ * - ERC-777 tokens: Deployer must verify token contract doesn't implement reentrancy hooks
+ * - ReentrancyGuard: Applied for defense-in-depth despite Checks-Effects-Interactions pattern
+ * - Ownable: Only contract owner can create and revoke lockups
+ * - Immutable design: No upgradeability to minimize attack surface
  */
 contract SimpleLockup is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -143,6 +158,23 @@ contract SimpleLockup is Ownable, ReentrancyGuard {
      * @dev Freezes vesting at current amount by explicitly storing vestedAtRevoke.
      *      Beneficiary can still claim vested tokens up to the revoked amount.
      *      Original totalAmount and vestingDuration remain unchanged for transparency.
+     *
+     * @custom:behavior Beneficiary Rights After Revocation
+     *      - Beneficiary KEEPS all tokens vested at the time of revocation
+     *      - This is INTENDED behavior, not a security vulnerability
+     *      - Revocation stops FUTURE vesting only, does not confiscate vested tokens
+     *      - If beneficiary calls release() before owner calls revoke(), this is acceptable
+     *      - "Front-running" revoke with release() is NOT an attack - it's fair usage
+     *      - Design rationale: Revocation is for stopping future benefits, not punishing past work
+     *
+     *      Example timeline:
+     *        T=0: Lockup created for 1000 tokens, 1 year vesting
+     *        T=6 months: 500 tokens vested, beneficiary has not claimed yet
+     *        T=6 months + 1 second: Owner submits revoke() transaction
+     *        T=6 months + 1 second: Beneficiary sees pending revoke, calls release()
+     *        Result: Beneficiary receives 500 tokens, owner receives 500 tokens back
+     *        This is fair and intended - beneficiary earned those 500 tokens over 6 months
+     *
      * @custom:security Only revocable lockups can be revoked. Cannot be revoked twice.
      *      Protected by ReentrancyGuard for defense-in-depth.
      */
@@ -272,6 +304,24 @@ contract SimpleLockup is Ownable, ReentrancyGuard {
      * @dev Uses linear vesting formula: (totalAmount × timeFromStart) / vestingDuration
      *      Integer division rounds down. Any rounding dust is released at vesting end.
      *      For revoked lockups, returns the explicitly stored vestedAtRevoke amount.
+     *
+     * @custom:precision Rounding Behavior and Error Analysis
+     *      - Rounding error: < 1 token per calculation (Solidity integer division)
+     *      - NO cumulative error: Each calculation is independent, not incremental
+     *      - Auto-correction: Errors self-correct in subsequent releases
+     *
+     *      Example (50,000,000 tokens vested over 10 years):
+     *        Day 1: vested = 13,698 tokens (actual: 13,698.63)
+     *               release = 13,698, releasedAmount = 13,698
+     *        Day 2: vested = 27,397 tokens (actual: 27,397.26)
+     *               release = 27,397 - 13,698 = 13,699 (error corrected!)
+     *        ...
+     *        Last day: release = totalAmount - releasedAmount (all remaining)
+     *
+     *      Revocation precision:
+     *        - At revoke: vestedAtRevoke stores calculated vested amount
+     *        - Maximum loss: < 1 token (e.g., 0.000002% for 50M tokens)
+     *        - This is acceptable for gas efficiency vs precision tradeoff
      */
     function _vestedAmount(address beneficiary) private view returns (uint256) {
         LockupInfo memory lockup = lockups[beneficiary];

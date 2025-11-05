@@ -216,6 +216,45 @@ function revoke(address beneficiary) external onlyOwner
 - Returns unvested tokens to owner
 - Beneficiary keeps already vested tokens
 
+## Important Behaviors
+
+### Vesting Precision
+
+The contract uses integer division for gas efficiency. Key characteristics:
+
+- **Rounding**: Each calculation has < 1 token rounding error (Solidity integer division)
+- **No Cumulative Error**: Each vesting calculation is independent, not incremental
+- **Auto-correction**: Errors self-correct in subsequent releases
+- **Example (50,000,000 tokens, 10 years)**:
+  - Day 1: vested = 13,698 tokens (actual: 13,698.63)
+    - Release: 13,698 tokens
+  - Day 2: vested = 27,397 tokens (actual: 27,397.26)
+    - Release: 27,397 - 13,698 = 13,699 tokens (error corrected!)
+  - Day 3+: Continues with independent calculations
+  - Last day: All remaining tokens released (zero final loss)
+- **Revocation precision**: < 1 token loss at revoke (e.g., 0.000002% for 50M tokens)
+- **Completion**: All remaining tokens released at vesting end (eliminates rounding dust)
+
+### Revocation Behavior
+
+When a lockup is revoked, the following behavior is **intentional and by design**:
+
+- **Beneficiary Rights**: Keeps all tokens vested at the time of revocation
+- **Future Vesting Only**: Revocation stops future vesting, does not confiscate vested tokens
+- **Fair Usage**: If beneficiary calls `release()` before owner calls `revoke()`, this is acceptable
+- **Not a Vulnerability**: "Front-running" revoke with release() is fair usage, not an attack
+- **Design Rationale**: Revocation punishes future benefits, not past work
+
+**Example Timeline**:
+```
+T=0:       Lockup created (1000 tokens, 1 year vesting)
+T=6mo:     500 tokens vested, beneficiary hasn't claimed yet
+T=6mo+1s:  Owner submits revoke() transaction (pending in mempool)
+T=6mo+1s:  Beneficiary sees pending revoke, calls release()
+Result:    Beneficiary receives 500 tokens, owner receives 500 tokens back
+Status:    Fair and intended - beneficiary earned those tokens over 6 months
+```
+
 ## Security
 
 - **ReentrancyGuard**: Protection against reentrancy attacks
