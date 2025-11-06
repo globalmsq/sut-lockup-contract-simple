@@ -70,7 +70,7 @@ async function main() {
       tokenAddress.toLowerCase() !== expectedToken.toLowerCase() &&
       process.env.TOKEN_ADDRESS
     ) {
-      console.log('\n⚠️  Warning: Token address does not match expected SUT token address');
+      console.log('\n⚠️  Warning: Token address does not match expected ERC20 token address');
       console.log('  Expected:', expectedToken);
       console.log('  Actual:', tokenAddress);
     }

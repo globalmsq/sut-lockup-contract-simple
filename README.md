@@ -1,6 +1,6 @@
 # SimpleLockup - Minimal Token Vesting Contract
 
-A simplified, production-ready smart contract for SUT token lockup with linear vesting on Polygon. **One lockup per contract** - maximum simplicity.
+A simplified, production-ready smart contract for ERC20 token lockup with linear vesting on Polygon. **One lockup per contract** - maximum simplicity.
 
 ## Key Features
 
@@ -99,7 +99,7 @@ SimpleLockup
 ```bash
 # Clone the repository
 git clone <your-repo-url>
-cd sut-lockup-contract-simple
+cd erc20-lockup-simple
 
 # Install dependencies
 pnpm install
@@ -121,7 +121,7 @@ Required variables:
 ```env
 # Deployment (set these before deploying)
 PRIVATE_KEY=your_private_key_here
-TOKEN_ADDRESS=sut_token_address
+TOKEN_ADDRESS=erc20_token_address
 
 # Network RPC URLs
 POLYGON_RPC_URL=https://polygon-rpc.com
@@ -403,9 +403,9 @@ Deploy SimpleLockup contract to Polygon mainnet or Amoy testnet.
 **Environment Variables:**
 
 - `PRIVATE_KEY` (required) - Deployer's private key
-- `TOKEN_ADDRESS` (required) - SUT token address
-  - Polygon Mainnet: `0x98965474EcBeC2F532F1f780ee37b0b05F77Ca55`
-  - Amoy Testnet: `0xE4C687167705Abf55d709395f92e254bdF5825a2`
+- `TOKEN_ADDRESS` (required) - ERC20 token address
+  - Example Polygon Mainnet: `0x98965474EcBeC2F532F1f780ee37b0b05F77Ca55`
+  - Example Amoy Testnet: `0xE4C687167705Abf55d709395f92e254bdF5825a2`
 - `ETHERSCAN_API_KEY` (optional) - For contract verification
 
 **Usage:**

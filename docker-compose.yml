@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: node
-    container_name: sut-hardhat-node
+    container_name: erc20-hardhat-node
     ports:
       - "8545:8545"
     networks:
@@ -22,7 +22,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: deploy
-    container_name: sut-hardhat-deploy
+    container_name: erc20-hardhat-deploy
     depends_on:
       hardhat-node:
         condition: service_healthy
