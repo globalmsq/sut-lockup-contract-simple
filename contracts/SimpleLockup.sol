@@ -33,9 +33,9 @@ contract SimpleLockup is Ownable, ReentrancyGuard {
     struct LockupInfo {
         uint256 totalAmount;
         uint256 releasedAmount;
-        uint256 startTime;
-        uint256 cliffDuration;
-        uint256 vestingDuration;
+        uint64 startTime;
+        uint64 cliffDuration;
+        uint64 vestingDuration;
         bool revocable;
         bool revoked;
         uint256 vestedAtRevoke; // Amount vested at revocation time (0 if not revoked)
@@ -51,9 +51,9 @@ contract SimpleLockup is Ownable, ReentrancyGuard {
     event TokensLocked(
         address indexed beneficiary,
         uint256 amount,
-        uint256 startTime,
-        uint256 cliffDuration,
-        uint256 vestingDuration,
+        uint64 startTime,
+        uint64 cliffDuration,
+        uint64 vestingDuration,
         bool revocable
     );
     event TokensReleased(address indexed beneficiary, uint256 amount);
@@ -140,8 +140,8 @@ contract SimpleLockup is Ownable, ReentrancyGuard {
     function createLockup(
         address _beneficiary,
         uint256 amount,
-        uint256 cliffDuration,
-        uint256 vestingDuration,
+        uint64 cliffDuration,
+        uint64 vestingDuration,
         bool revocable
     ) external onlyOwner nonReentrant {
         // 1. SLOAD checks (most important check first)
@@ -173,7 +173,7 @@ contract SimpleLockup is Ownable, ReentrancyGuard {
         lockupInfo = LockupInfo({
             totalAmount: amount,
             releasedAmount: 0,
-            startTime: block.timestamp,
+            startTime: uint64(block.timestamp),
             cliffDuration: cliffDuration,
             vestingDuration: vestingDuration,
             revocable: revocable,
@@ -191,7 +191,7 @@ contract SimpleLockup is Ownable, ReentrancyGuard {
             revert InsufficientTokensReceived(actualReceived, amount);
         }
 
-        emit TokensLocked(_beneficiary, amount, block.timestamp, cliffDuration, vestingDuration, revocable);
+        emit TokensLocked(_beneficiary, amount, uint64(block.timestamp), cliffDuration, vestingDuration, revocable);
     }
 
     /**

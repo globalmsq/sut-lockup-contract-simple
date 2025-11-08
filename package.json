@@ -7,6 +7,7 @@
     "build": "hardhat compile",
     "compile": "hardhat compile",
     "test": "hardhat test test/SimpleLockup.test.ts",
+    "test:gas": "REPORT_GAS=true hardhat test",
     "test:coverage": "hardhat coverage",
     "test:integration": "hardhat test test/integration/*.test.ts",
     "test:all": "pnpm test && pnpm test:integration",
